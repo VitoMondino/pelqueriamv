@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <h1 className="login-title">✂️ Peluquería</h1>
+        <h1 className="login-title">Gestion M.V</h1>
         <p className="login-sub">Ingresá con tu cuenta</p>
 
         {error && <div className="alert alert-error">{error}</div>}

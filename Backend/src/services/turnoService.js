@@ -71,7 +71,38 @@ const getFijos = async () => {
   return rows;
 };
 
+// Valida que no haya otro turno en la misma fecha en un rango de 30 minutos
+const validarDisponibilidad = async (fecha, hora, excludeId = null) => {
+  const [hh, mm] = hora.split(':').map(Number);
+  const minutos  = hh * 60 + mm;
+
+  const { rows } = await db.query(
+    `SELECT id, hora FROM turnos
+     WHERE fecha = $1
+       AND estado != 'cancelado'
+       AND ($2 IS NULL OR id != $2)`,
+    [fecha, excludeId]
+  );
+
+  for (const t of rows) {
+    const [th, tm] = t.hora.slice(0, 5).split(':').map(Number);
+    const tMin     = th * 60 + tm;
+    if (Math.abs(tMin - minutos) < 30) {
+      return {
+        disponible: false,
+        mensaje:    `Ya existe un turno a las ${t.hora.slice(0, 5)}. Los turnos deben tener al menos 30 minutos de diferencia.`,
+      };
+    }
+  }
+  return { disponible: true };
+};
+
 const create = async ({ idCliente, idServicio, fecha, hora, diaSemana, esFijo, notas }) => {
+  const check = await validarDisponibilidad(fecha, hora);
+  if (!check.disponible) {
+    throw Object.assign(new Error(check.mensaje), { status: 422 });
+  }
+
   const { rows } = await db.query(
     `INSERT INTO turnos (id_cliente, id_servicio, fecha, hora, dia_semana, es_fijo, notas)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -81,15 +112,12 @@ const create = async ({ idCliente, idServicio, fecha, hora, diaSemana, esFijo, n
   return rows[0];
 };
 
-const updateEstado = async (id, estado) => {
-  const { rows } = await db.query(
-    `UPDATE turnos SET estado = $2 WHERE id = $1 RETURNING *`,
-    [id, estado]
-  );
-  return rows[0] || null;
-};
-
 const update = async (id, { idCliente, idServicio, fecha, hora, diaSemana, esFijo, notas }) => {
+  const check = await validarDisponibilidad(fecha, hora, id);
+  if (!check.disponible) {
+    throw Object.assign(new Error(check.mensaje), { status: 422 });
+  }
+
   const { rows } = await db.query(
     `UPDATE turnos
      SET id_cliente = $2, id_servicio = $3, fecha = $4, hora = $5,
@@ -101,12 +129,19 @@ const update = async (id, { idCliente, idServicio, fecha, hora, diaSemana, esFij
   return rows[0] || null;
 };
 
+const updateEstado = async (id, estado) => {
+  const { rows } = await db.query(
+    `UPDATE turnos SET estado = $2 WHERE id = $1 RETURNING *`,
+    [id, estado]
+  );
+  return rows[0] || null;
+};
+
 const remove = async (id) => {
   const { rowCount } = await db.query('DELETE FROM turnos WHERE id = $1', [id]);
   return rowCount > 0;
 };
 
-// Genera instancias de turnos fijos para una semana — usa transacción
 const generarTurnosFijosParaSemana = async (fechaInicio) => {
   const diasMap = {
     domingo: 0, lunes: 1, martes: 2, miercoles: 3,
@@ -126,9 +161,9 @@ const generarTurnosFijosParaSemana = async (fechaInicio) => {
       const diff       = (diaTarget - base.getDay() + 7) % 7;
       const fechaTurno = new Date(base);
       fechaTurno.setDate(base.getDate() + diff);
+      const fechaStr   = fechaTurno.toISOString().split('T')[0];
 
-      const fechaStr = fechaTurno.toISOString().split('T')[0];
-      const result   = await client.query(
+      const result = await client.query(
         `INSERT INTO turnos (id_cliente, id_servicio, fecha, hora, dia_semana, es_fijo, estado)
          VALUES ($1, $2, $3, $4, $5, FALSE, 'pendiente')
          ON CONFLICT DO NOTHING`,
