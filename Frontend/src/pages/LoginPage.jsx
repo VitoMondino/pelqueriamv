@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
-  const { login } = useNavigate ? useAuth() : {}
-  const navigate  = useNavigate()
+  const { login }     = useAuth()
+  const navigate      = useNavigate()
   const [form, setForm]       = useState({ email: '', password: '' })
   const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <h1 className="login-title">Gestion MV</h1>
+        <h1 className="login-title">✂️ Peluquería</h1>
         <p className="login-sub">Ingresá con tu cuenta</p>
 
         {error && <div className="alert alert-error">{error}</div>}

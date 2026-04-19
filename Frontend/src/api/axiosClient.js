@@ -1,7 +1,13 @@
 import axios from 'axios'
 
+// En desarrollo usa el proxy de Vite (/api → localhost:3001)
+// En producción usa la variable VITE_API_URL que configurás en Vercel
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : '/api'
+
 const axiosClient = axios.create({
-  baseURL: '/api',
+  baseURL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 })
