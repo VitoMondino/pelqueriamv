@@ -1,19 +1,15 @@
 import { useState, useMemo } from 'react'
 
-const POR_PAGINA = 15
-
-export function usePagination(items) {
+export function usePagination(items, perPage = 15) {
   const [pagina, setPagina] = useState(1)
 
-  const totalPaginas = Math.max(1, Math.ceil(items.length / POR_PAGINA))
-
-  // Si el filtro reduce los items y la página actual queda vacía, volvemos a 1
-  const paginaActual = Math.min(pagina, totalPaginas)
+  const totalPaginas  = Math.max(1, Math.ceil(items.length / perPage))
+  const paginaActual  = Math.min(pagina, totalPaginas)
 
   const itemsPagina = useMemo(() => {
-    const inicio = (paginaActual - 1) * POR_PAGINA
-    return items.slice(inicio, inicio + POR_PAGINA)
-  }, [items, paginaActual])
+    const inicio = (paginaActual - 1) * perPage
+    return items.slice(inicio, inicio + perPage)
+  }, [items, paginaActual, perPage])
 
   const resetPagina = () => setPagina(1)
 

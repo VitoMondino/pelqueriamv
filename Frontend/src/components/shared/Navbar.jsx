@@ -7,7 +7,7 @@ export default function Navbar() {
   return (
     <nav className="navbar">
       <div className="navbar-inner">
-        <span className="navbar-brand">✂️ Peluquería</span>
+        <span className="navbar-brand">MV Salón Urbano: Gestión Peluquería</span>
 
         <NavLink to="/turnos"      className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>Turnos</NavLink>
         <NavLink to="/clientes"    className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>Clientes</NavLink>

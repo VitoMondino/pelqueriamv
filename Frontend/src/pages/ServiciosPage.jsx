@@ -1,71 +1,90 @@
 import { useState, useEffect, useCallback } from 'react'
+import Swal from 'sweetalert2'
 import axiosClient from '../api/axiosClient'
 import Modal       from '../components/shared/Modal'
 import Paginacion  from '../components/shared/Paginacion'
 import { usePagination } from '../hooks/usePagination'
 
-const EMPTY_FORM = { nombreServicio: '', precio: '', estado: 'activo' }
+const EMPTY_FORM = { nombreServicio:'', precio:'', estado:'activo' }
+
+const Toast = Swal.mixin({
+  toast:true, position:'top-end', showConfirmButton:false, timer:3000, timerProgressBar:true,
+})
 
 export default function ServiciosPage() {
-  const [servicios, setServicios] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [modal,     setModal]     = useState(false)
-  const [form,      setForm]      = useState(EMPTY_FORM)
-  const [editId,    setEditId]    = useState(null)
-  const [error,     setError]     = useState('')
-  const [saving,    setSaving]    = useState(false)
+  const [servicios,setServicios] = useState([])
+  const [loading,  setLoading]   = useState(true)
+  const [modal,    setModal]     = useState(false)
+  const [form,     setForm]      = useState(EMPTY_FORM)
+  const [editId,   setEditId]    = useState(null)
+  const [error,    setError]     = useState('')
+  const [saving,   setSaving]    = useState(false)
 
   const { itemsPagina, pagina, setPagina, totalPaginas } = usePagination(servicios)
 
   const fetchServicios = useCallback(async () => {
-    try { setLoading(true); const { data } = await axiosClient.get('/servicios'); setServicios(data) }
-    catch { setError('Error al cargar servicios') }
+    try { setLoading(true); const {data}=await axiosClient.get('/servicios'); setServicios(data) }
+    catch { Toast.fire({ icon:'error', title:'Error al cargar servicios' }) }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { fetchServicios() }, [fetchServicios])
 
   const openNew  = () => { setForm(EMPTY_FORM); setEditId(null); setModal(true); setError('') }
-  const openEdit = (s) => { setForm({ nombreServicio: s.nombre_servicio, precio: s.precio, estado: s.estado }); setEditId(s.id); setModal(true); setError('') }
-  const closeModal = () => { setModal(false); setError('') }
+  const openEdit = (s) => { setForm({ nombreServicio:s.nombre_servicio, precio:s.precio, estado:s.estado }); setEditId(s.id); setModal(true); setError('') }
+  const closeModal   = () => { setModal(false); setError('') }
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setSaving(true); setError('')
     try {
-      const payload = { ...form, precio: parseFloat(form.precio) }
-      if (editId) { await axiosClient.put(`/servicios/${editId}`, payload) }
-      else        { await axiosClient.post('/servicios', payload) }
+      const payload = { ...form, precio:parseFloat(form.precio) }
+      if (editId) { await axiosClient.put(`/servicios/${editId}`,payload) }
+      else        { await axiosClient.post('/servicios',payload) }
       await fetchServicios(); closeModal()
-    } catch (err) { setError(err.response?.data?.error || 'Error al guardar') }
+      Toast.fire({ icon:'success', title: editId?'Servicio actualizado':'Servicio creado' })
+    } catch (err) { setError(err.response?.data?.error||'Error al guardar') }
     finally { setSaving(false) }
   }
 
   const toggleEstado = async (s) => {
-    const nuevoEstado = s.estado === 'activo' ? 'inactivo' : 'activo'
+    const nuevoEstado = s.estado==='activo'?'inactivo':'activo'
     try {
-      await axiosClient.patch(`/servicios/${s.id}/estado`, { estado: nuevoEstado })
-      setServicios((ss) => ss.map((x) => x.id === s.id ? { ...x, estado: nuevoEstado } : x))
-    } catch (err) { alert(err.response?.data?.error || 'Error') }
+      await axiosClient.patch(`/servicios/${s.id}/estado`,{ estado:nuevoEstado })
+      setServicios((ss) => ss.map((x) => x.id===s.id?{...x,estado:nuevoEstado}:x))
+      Toast.fire({ icon:'info', title:`Servicio ${nuevoEstado}` })
+    } catch (err) {
+      Swal.fire({ icon:'error', title:'Error', text:err.response?.data?.error||'Error' })
+    }
   }
 
   const handleDelete = async (id, nombre) => {
-    if (!confirm(`¿Eliminar "${nombre}"?`)) return
-    try { await axiosClient.delete(`/servicios/${id}`); setServicios((ss) => ss.filter((s) => s.id !== id)) }
-    catch (err) { alert(err.response?.data?.error || 'No se puede eliminar (tiene turnos asociados)') }
+    const { isConfirmed } = await Swal.fire({
+      title:`¿Eliminar "${nombre}"?`, text:'Esta acción no se puede deshacer.',
+      icon:'warning', showCancelButton:true,
+      confirmButtonColor:'#dc2626', cancelButtonColor:'#6b7280',
+      confirmButtonText:'Sí, eliminar', cancelButtonText:'Cancelar',
+    })
+    if (!isConfirmed) return
+    try {
+      await axiosClient.delete(`/servicios/${id}`)
+      setServicios((ss) => ss.filter((s) => s.id!==id))
+      Toast.fire({ icon:'success', title:'Servicio eliminado' })
+    } catch (err) {
+      Swal.fire({ icon:'error', title:'No se puede eliminar', text:'El servicio tiene turnos asociados.' })
+    }
   }
 
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Servicios <span style={{ fontSize:14, fontWeight:400, color:'var(--gray-400)' }}>({servicios.length})</span></h1>
+        <h1 className="page-title">Servicios <span style={{fontSize:14,fontWeight:400,color:'var(--gray-400)'}}>({servicios.length})</span></h1>
         <button className="btn btn-primary" onClick={openNew}>+ Nuevo servicio</button>
       </div>
-
       <div className="card">
         {loading ? (
           <div className="spinner-wrap"><div className="spinner" /></div>
-        ) : servicios.length === 0 ? (
+        ) : servicios.length===0 ? (
           <div className="empty"><div className="empty-icon">💈</div><div className="empty-text">No hay servicios</div></div>
         ) : (
           <>
@@ -80,9 +99,9 @@ export default function ServiciosPage() {
                       <td><span className={`badge ${s.estado==='activo'?'badge-green':'badge-gray'}`}>{s.estado}</span></td>
                       <td>
                         <div className="td-actions">
-                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Editar</button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => toggleEstado(s)}>{s.estado==='activo'?'Desactivar':'Activar'}</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(s.id, s.nombre_servicio)}>Eliminar</button>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>openEdit(s)}>Editar</button>
+                          <button className="btn btn-ghost btn-sm" onClick={()=>toggleEstado(s)}>{s.estado==='activo'?'Desactivar':'Activar'}</button>
+                          <button className="btn btn-danger btn-sm" onClick={()=>handleDelete(s.id,s.nombre_servicio)}>Eliminar</button>
                         </div>
                       </td>
                     </tr>
@@ -94,15 +113,14 @@ export default function ServiciosPage() {
           </>
         )}
       </div>
-
       {modal && (
         <Modal title={editId?'Editar servicio':'Nuevo servicio'} onClose={closeModal}
           footer={<><button className="btn btn-ghost" onClick={closeModal}>Cancelar</button><button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>{saving?'Guardando...':'Guardar'}</button></>}>
-          {error && <div className="alert alert-error">{error}</div>}
+          {error&&<div className="alert alert-error">{error}</div>}
           <form onSubmit={handleSubmit}>
-            <div className="form-group"><label className="form-label">Nombre del servicio *</label><input className="form-input" name="nombreServicio" value={form.nombreServicio} onChange={handleChange} required placeholder="Ej: Corte de cabello" /></div>
+            <div className="form-group"><label className="form-label">Nombre *</label><input className="form-input" name="nombreServicio" value={form.nombreServicio} onChange={handleChange} required placeholder="Ej: Corte de cabello" /></div>
             <div className="form-row">
-              <div className="form-group"><label className="form-label">Precio *</label><input className="form-input" type="number" name="precio" value={form.precio} onChange={handleChange} min="0" step="0.01" required placeholder="0.00" /></div>
+              <div className="form-group"><label className="form-label">Precio *</label><input className="form-input" type="number" name="precio" value={form.precio} onChange={handleChange} min="0" step="0.01" required /></div>
               <div className="form-group"><label className="form-label">Estado</label><select className="form-select" name="estado" value={form.estado} onChange={handleChange}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></div>
             </div>
           </form>
