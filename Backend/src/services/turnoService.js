@@ -71,18 +71,28 @@ const getFijos = async () => {
   return rows;
 };
 
-// Valida que no haya otro turno en la misma fecha en un rango de 30 minutos
+// Valida que no haya otro turno en la misma fecha con menos de 30 min de diferencia
 const validarDisponibilidad = async (fecha, hora, excludeId = null) => {
   const [hh, mm] = hora.split(':').map(Number);
   const minutos  = hh * 60 + mm;
 
-  const { rows } = await db.query(
-    `SELECT id, hora FROM turnos
-     WHERE fecha = $1
-       AND estado != 'cancelado'
-       AND ($2 IS NULL OR id != $2)`,
-    [fecha, excludeId]
-  );
+  // Query separado según si hay ID a excluir (evita el problema de $2 null)
+  let rows;
+  if (excludeId) {
+    const res = await db.query(
+      `SELECT id, hora FROM turnos
+       WHERE fecha = $1 AND estado != 'cancelado' AND id != $2`,
+      [fecha, excludeId]
+    );
+    rows = res.rows;
+  } else {
+    const res = await db.query(
+      `SELECT id, hora FROM turnos
+       WHERE fecha = $1 AND estado != 'cancelado'`,
+      [fecha]
+    );
+    rows = res.rows;
+  }
 
   for (const t of rows) {
     const [th, tm] = t.hora.slice(0, 5).split(':').map(Number);
@@ -90,7 +100,7 @@ const validarDisponibilidad = async (fecha, hora, excludeId = null) => {
     if (Math.abs(tMin - minutos) < 30) {
       return {
         disponible: false,
-        mensaje:    `Ya existe un turno a las ${t.hora.slice(0, 5)}. Los turnos deben tener al menos 30 minutos de diferencia.`,
+        mensaje: `Ya existe un turno a las ${t.hora.slice(0, 5)}. Los turnos deben tener al menos 30 minutos de diferencia.`,
       };
     }
   }
