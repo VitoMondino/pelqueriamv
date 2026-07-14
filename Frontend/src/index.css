@@ -226,3 +226,73 @@ tr:hover td { background: var(--gray-50); }
   padding: 8px 12px; border: 1px solid var(--gray-200);
   border-radius: var(--radius); font-size: 14px;
 }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .page { padding: 16px 12px; }
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .page-title { font-size: 20px; }
+  .form-row { grid-template-columns: 1fr; gap: 0; }
+  .modal-footer {
+    flex-direction: column-reverse;
+  }
+  .modal-footer .btn {
+    width: 100%; justify-content: center;
+  }
+  .navbar-inner {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    height: auto;
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .navbar-brand {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  .navbar-spacer { display: none; }
+  .nav-link {
+    flex: 1 1 calc(50% - 8px);
+    text-align: center;
+  }
+  .navbar-user {
+    width: 100%;
+    order: 3;
+    margin-top: 4px;
+  }
+  .fecha-nav {
+    flex-wrap: wrap;
+  }
+  .fecha-nav > * {
+    flex: 1 1 calc(50% - 6px);
+  }
+  .fecha-nav input[type="date"] {
+    width: 100%;
+    flex-basis: 100%;
+  }
+  .login-card {
+    padding: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page { padding: 12px 10px; }
+  .btn, .btn-sm {
+    width: 100%;
+    justify-content: center;
+  }
+  .td-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .nav-link {
+    flex-basis: 100%;
+  }
+  .fecha-nav > * {
+    flex-basis: 100%;
+  }
+}
