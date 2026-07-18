@@ -54,8 +54,6 @@ button, input, select, textarea { font: inherit; }
   max-width: 1200px;
   margin: 0 auto;
   padding: 28px 20px 40px;
-  position: relative;
-  z-index: 1;
 }
 .page-header {
   display: flex;
@@ -204,7 +202,7 @@ tr:hover td { background: linear-gradient(90deg, rgba(245, 243, 255, 0.7), rgba(
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 60;
+  z-index: 9999;
   padding: 16px;
 }
 .modal {
