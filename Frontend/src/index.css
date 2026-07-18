@@ -45,7 +45,7 @@ body::before {
 }
 
 #root { min-height: 100vh; }
-main { min-height: calc(100vh - 70px); position: relative; z-index: 1; }
+main { min-height: calc(100vh - 70px); position: relative; }
 
 button, input, select, textarea { font: inherit; }
 
