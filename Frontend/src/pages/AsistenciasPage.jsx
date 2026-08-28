@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Swal from 'sweetalert2'
 import axiosClient from '../api/axiosClient'
 
@@ -18,6 +18,7 @@ export default function AsistenciasPage() {
   const [clientes,    setClientes]    = useState([])
   const [asistencias, setAsistencias] = useState([])
   const [loading,     setLoading]     = useState(true)
+  const [buscarCliente, setBuscarCliente] = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -34,6 +35,15 @@ export default function AsistenciasPage() {
   }, [mes, anio])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  const clientesFiltrados = useMemo(() => {
+    const query = buscarCliente.toLowerCase().trim()
+    if (!query) return clientes
+    return clientes.filter((cliente) =>
+      `${cliente.nombre} ${cliente.apellido}`.toLowerCase().includes(query) ||
+      `${cliente.apellido} ${cliente.nombre}`.toLowerCase().includes(query)
+    )
+  }, [clientes, buscarCliente])
 
   const asistenciasDeCliente = (idCliente) =>
     asistencias.filter((a) => a.id_cliente === idCliente).sort((a,b) => a.fecha.localeCompare(b.fecha))
@@ -113,6 +123,16 @@ export default function AsistenciasPage() {
         <div className="empty"><div className="empty-icon">👥</div><div className="empty-text">No hay clientes</div></div>
       ) : (
         <div className="card">
+          <div style={{ padding:'16px 16px 0' }}>
+            <input
+              className="form-input"
+              type="search"
+              placeholder="Buscar por nombre o apellido..."
+              value={buscarCliente}
+              onChange={(e) => setBuscarCliente(e.target.value)}
+              aria-label="Buscar cliente por nombre o apellido"
+            />
+          </div>
           <div className="table-wrap">
             <table>
               <thead>
@@ -124,7 +144,7 @@ export default function AsistenciasPage() {
                 </tr>
               </thead>
               <tbody>
-                {clientes.map((c) => {
+                {clientesFiltrados.map((c) => {
                   const lista = asistenciasDeCliente(c.id)
                   const total = lista.length
                   const lleno = total >= 4
@@ -165,6 +185,13 @@ export default function AsistenciasPage() {
                     </tr>
                   )
                 })}
+                {clientesFiltrados.length === 0 && (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign:'center', color:'var(--gray-500)', padding:24 }}>
+                      No se encontraron clientes
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

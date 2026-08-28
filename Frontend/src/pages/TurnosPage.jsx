@@ -16,20 +16,16 @@ const ESTADO_BADGE = {
 
 const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado']
 
-// Slots de 30 min desde 08:00 hasta 02:00 (del día siguiente)
+// Slots de 30 min desde las 07:30 hasta las 23:30
 const SLOTS_HORA = (() => {
   const slots = []
-  // 08:00 → 23:30
-  for (let h = 8; h < 24; h++) {
-    slots.push(`${String(h).padStart(2,'0')}:00`)
-    slots.push(`${String(h).padStart(2,'0')}:30`)
+  for (let h = 7; h < 24; h++) {
+    if (h === 7) slots.push('07:30')
+    else {
+      slots.push(`${String(h).padStart(2,'0')}:00`)
+      slots.push(`${String(h).padStart(2,'0')}:30`)
+    }
   }
-  // 00:00 → 02:00
-  for (let h = 0; h <= 1; h++) {
-    slots.push(`${String(h).padStart(2,'0')}:00`)
-    slots.push(`${String(h).padStart(2,'0')}:30`)
-  }
-  slots.push('02:00')
   return slots
 })()
 
@@ -328,7 +324,7 @@ export default function TurnosPage() {
                 <input className="form-input" type="date" name="fecha" value={form.fecha} onChange={handleChange} required />
               </div>
               <div className="form-group">
-                <label className="form-label">Hora * (08:00 — 02:00)</label>
+                <label className="form-label">Hora * (07:30 — 23:30)</label>
                 <select className="form-select" name="hora" value={form.hora} onChange={handleChange} required>
                   <option value="">Seleccioná hora...</option>
                   {SLOTS_HORA.map((h) => <option key={h} value={h}>{h}</option>)}

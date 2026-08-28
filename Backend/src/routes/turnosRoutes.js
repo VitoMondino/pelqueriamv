@@ -8,7 +8,7 @@ const turnoValidators = [
   body('idCliente').isInt({ min: 1 }).withMessage('idCliente inválido'),
   body('idServicio').isInt({ min: 1 }).withMessage('idServicio inválido'),
   body('fecha').isDate().withMessage('Fecha inválida (YYYY-MM-DD)'),
-  body('hora').matches(/^\d{2}:\d{2}$/).withMessage('Hora inválida (HH:MM)'),
+  body('hora').matches(/^(?:0[78]:30|(?:0[89]|1\d|2[0-3]):(?:00|30))$/).withMessage('La hora debe estar entre 07:30 y 23:30, cada 30 minutos'),
   body('esFijo').optional().isBoolean(),
   body('diaSemana').optional({ nullable: true }).isString(),
 ];

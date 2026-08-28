@@ -1,5 +1,12 @@
 const db = require('../config/db');
 
+const validarHorario = (hora) => {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(hora));
+  if (!match) return false;
+  const minutos = Number(match[1]) * 60 + Number(match[2]);
+  return minutos >= 450 && minutos <= 1410 && minutos % 30 === 0;
+};
+
 const getAll = async () => {
   const { rows } = await db.query(
     `SELECT t.*, c.nombre, c.apellido, c.telefono, s.nombre_servicio, s.precio
@@ -89,6 +96,12 @@ const getFijos = async () => {
 };
 
 const validarDisponibilidad = async (fecha, hora, excludeId = null) => {
+  if (!validarHorario(hora)) {
+    throw Object.assign(
+      new Error('La hora debe estar entre 07:30 y 23:30, cada 30 minutos'),
+      { status: 422 }
+    );
+  }
   const [hh, mm] = hora.split(':').map(Number);
   const minutos  = hh * 60 + mm;
 
