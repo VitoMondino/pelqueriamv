@@ -1,12 +1,18 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import Swal from 'sweetalert2'
 import axiosClient    from '../api/axiosClient'
 import Modal          from '../components/shared/Modal'
 import WhatsAppButton from '../components/shared/WhatsAppButton'
-import Paginacion     from '../components/shared/Paginacion'
-import { usePagination } from '../hooks/usePagination'
 
 const hoy = () => new Date().toISOString().split('T')[0]
+
+const inicioDeSemana = (fecha) => {
+  const date = new Date(fecha + 'T00:00:00')
+  const dia = date.getDay()
+  const diferencia = dia === 0 ? -6 : 1 - dia
+  date.setDate(date.getDate() + diferencia)
+  return date.toISOString().split('T')[0]
+}
 
 const ESTADO_BADGE = {
   pendiente: 'badge-yellow',
@@ -40,6 +46,7 @@ const Toast = Swal.mixin({
 })
 
 export default function TurnosPage() {
+  const [vista,         setVista]         = useState('hoy')
   const [fecha,         setFecha]         = useState(hoy())
   const [turnos,        setTurnos]        = useState([])
   const [clientes,      setClientes]      = useState([])
@@ -53,19 +60,26 @@ export default function TurnosPage() {
   const [buscarCliente, setBuscarCliente] = useState('')
   const [dropdownOpen,  setDropdownOpen]  = useState(false)
 
-  // 30 registros por página en turnos
-  const { itemsPagina, pagina, setPagina, totalPaginas } = usePagination(turnos, 30)
-
   const fetchTurnos = useCallback(async () => {
     setLoading(true)
     try {
-      const { data } = await axiosClient.get(`/turnos/fecha/${fecha}`)
-      setTurnos(data)
-      setPagina(1)
+      const fechaInicio = vista === 'semana' ? inicioDeSemana(fecha) : fecha
+      const fechas = Array.from({ length: vista === 'semana' ? 7 : 1 }, (_, indice) => {
+        const date = new Date(fechaInicio + 'T00:00:00')
+        date.setDate(date.getDate() + indice)
+        return date.toISOString().split('T')[0]
+      })
+      const respuestas = await Promise.all(
+        fechas.map((fechaDia) => axiosClient.get(`/turnos/fecha/${fechaDia}`))
+      )
+      const turnosSemana = respuestas.flatMap((respuesta, indice) =>
+        respuesta.data.map((turno) => ({ ...turno, fechaVista: fechas[indice] }))
+      )
+      setTurnos(turnosSemana)
     } catch {
       Toast.fire({ icon: 'error', title: 'Error al cargar turnos' })
     } finally { setLoading(false) }
-  }, [fecha])
+  }, [fecha, vista])
 
   useEffect(() => { fetchTurnos() }, [fetchTurnos])
 
@@ -154,8 +168,7 @@ export default function TurnosPage() {
     })
     if (!isConfirmed) return
 
-    // Usamos el estado 'fecha' de la vista actual para no tomar la fecha de origen
-    const fechaVista = fecha
+    const fechaVista = t.fechaVista
     try {
       await axiosClient.patch(`/turnos/${t.id}/estado`, { estado, fecha: fechaVista })
       await fetchTurnos()
@@ -189,12 +202,62 @@ export default function TurnosPage() {
   const moverFecha = (dias) => {
     const d = new Date(fecha + 'T00:00:00')
     d.setDate(d.getDate() + dias)
-    setFecha(d.toISOString().split('T')[0])
+    setFecha(vista === 'semana'
+      ? inicioDeSemana(d.toISOString().split('T')[0])
+      : d.toISOString().split('T')[0])
   }
 
-  const fechaLabel = new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', {
+  const fechaInicioSemana = inicioDeSemana(fecha)
+  const fechaFin = new Date(fechaInicioSemana + 'T00:00:00')
+  fechaFin.setDate(fechaFin.getDate() + 6)
+  const rangoLabel = `${new Date(fechaInicioSemana + 'T00:00:00').toLocaleDateString('es-AR', {
+    day: 'numeric', month: 'long',
+  })} al ${fechaFin.toLocaleDateString('es-AR', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })}`
+  const fechaDiaLabel = (fechaDia) => new Date(fechaDia + 'T00:00:00').toLocaleDateString('es-AR', {
     weekday: 'long', day: 'numeric', month: 'long',
   })
+
+  const cambiarVista = (nuevaVista) => {
+    setVista(nuevaVista)
+    if (nuevaVista === 'hoy') setFecha(hoy())
+    else setFecha(inicioDeSemana(fecha))
+  }
+
+  const renderTurno = (t) => (
+    <tr key={`${t.id}-${t.fechaVista}`}>
+      {vista === 'semana' && (
+        <td style={{ textTransform:'capitalize', whiteSpace:'nowrap' }}>{fechaDiaLabel(t.fechaVista)}</td>
+      )}
+      <td><strong>{t.hora?.slice(0,5)}</strong></td>
+      <td>{t.apellido}, {t.nombre}</td>
+      <td>{t.nombre_servicio}</td>
+      <td>${parseFloat(t.precio).toLocaleString('es-AR')}</td>
+      <td><span className={`badge ${ESTADO_BADGE[t.estado]}`}>{t.estado}</span></td>
+      <td>{t.es_fijo ? <span className="badge badge-purple">Fijo</span> : '—'}</td>
+      <td>
+        <div className="td-actions" style={{ flexWrap:'wrap' }}>
+          {t.estado === 'pendiente' && (
+            <button className="btn btn-success btn-sm" onClick={() => cambiarEstado(t, 'realizado')}>✓ Realizado</button>
+          )}
+          {t.estado !== 'cancelado' && (
+            <button className="btn btn-ghost btn-sm" onClick={() => cambiarEstado(t, 'cancelado')}>Cancelar</button>
+          )}
+          {t.estado === 'cancelado' && (
+            <button className="btn btn-ghost btn-sm" onClick={() => cambiarEstado(t, 'pendiente')}>Reabrir</button>
+          )}
+          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)}>Editar</button>
+          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t)}>✕</button>
+          <WhatsAppButton
+            telefono={t.telefono} nombre={t.nombre}
+            fecha={t.fechaVista}
+            hora={t.hora?.slice(0,5)}
+          />
+        </div>
+      </td>
+    </tr>
+  )
 
   return (
     <div className="page">
@@ -203,61 +266,62 @@ export default function TurnosPage() {
         <button className="btn btn-primary" onClick={openNew}>+ Nuevo turno</button>
       </div>
 
+      <div style={{ display:'flex', gap:6, marginBottom:16 }}>
+        <button className={`btn btn-sm ${vista === 'hoy' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => cambiarVista('hoy')}>
+          Hoy
+        </button>
+        <button className={`btn btn-sm ${vista === 'semana' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => cambiarVista('semana')}>
+          Semana completa
+        </button>
+      </div>
+
       <div className="fecha-nav">
-        <button className="btn btn-ghost btn-sm" onClick={() => moverFecha(-1)}>← Anterior</button>
-        <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-        <button className="btn btn-ghost btn-sm" onClick={() => moverFecha(1)}>Siguiente →</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => setFecha(hoy())}>Hoy</button>
-        <span style={{ color:'var(--gray-600)', fontSize:14, textTransform:'capitalize' }}>{fechaLabel}</span>
+        <button className="btn btn-ghost btn-sm" onClick={() => moverFecha(vista === 'semana' ? -7 : -1)}>
+          ← {vista === 'semana' ? 'Semana anterior' : 'Día anterior'}
+        </button>
+        <input type="date" value={fecha} onChange={(e) => setFecha(vista === 'semana' ? inicioDeSemana(e.target.value) : e.target.value)} />
+        <button className="btn btn-ghost btn-sm" onClick={() => moverFecha(vista === 'semana' ? 7 : 1)}>
+          {vista === 'semana' ? 'Semana siguiente' : 'Día siguiente'} →
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => setFecha(vista === 'semana' ? inicioDeSemana(hoy()) : hoy())}>
+          {vista === 'semana' ? 'Esta semana' : 'Hoy'}
+        </button>
+        <span style={{ color:'var(--gray-600)', fontSize:14, textTransform:'capitalize' }}>
+          {vista === 'semana' ? rangoLabel : fechaDiaLabel(fecha)}
+        </span>
       </div>
 
       <div className="card">
         {loading ? (
           <div className="spinner-wrap"><div className="spinner" /></div>
         ) : turnos.length === 0 ? (
-          <div className="empty"><div className="empty-icon">📅</div><div className="empty-text">Sin turnos para este día</div></div>
+          <div className="empty"><div className="empty-icon">📅</div><div className="empty-text">Sin turnos para {vista === 'semana' ? 'esta semana' : 'hoy'}</div></div>
         ) : (
           <>
             <div className="table-wrap">
               <table>
                 <thead>
-                  <tr><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Estado</th><th>Fijo</th><th>Acciones</th></tr>
+                  <tr>
+                    {vista === 'semana' && <th>Fecha</th>}
+                    <th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Estado</th><th>Fijo</th><th>Acciones</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {itemsPagina.map((t) => (
-                    <tr key={`${t.id}-${t.fecha}`}>
-                      <td><strong>{t.hora?.slice(0,5)}</strong></td>
-                      <td>{t.apellido}, {t.nombre}</td>
-                      <td>{t.nombre_servicio}</td>
-                      <td>${parseFloat(t.precio).toLocaleString('es-AR')}</td>
-                      <td><span className={`badge ${ESTADO_BADGE[t.estado]}`}>{t.estado}</span></td>
-                      <td>{t.es_fijo ? <span className="badge badge-purple">Fijo</span> : '—'}</td>
-                      <td>
-                        <div className="td-actions" style={{ flexWrap:'wrap' }}>
-                          {t.estado === 'pendiente' && (
-                            <button className="btn btn-success btn-sm" onClick={() => cambiarEstado(t, 'realizado')}>✓ Realizado</button>
-                          )}
-                          {t.estado !== 'cancelado' && (
-                            <button className="btn btn-ghost btn-sm" onClick={() => cambiarEstado(t, 'cancelado')}>Cancelar</button>
-                          )}
-                          {t.estado === 'cancelado' && (
-                            <button className="btn btn-ghost btn-sm" onClick={() => cambiarEstado(t, 'pendiente')}>Reabrir</button>
-                          )}
-                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit(t)}>Editar</button>
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t)}>✕</button>
-                          <WhatsAppButton
-                            telefono={t.telefono} nombre={t.nombre}
-                            fecha={fecha}
-                            hora={t.hora?.slice(0,5)}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {vista === 'semana'
+                    ? Array.from(new Set(turnos.map((turno) => turno.fechaVista))).map((fechaDia) => (
+                        <Fragment key={fechaDia}>
+                          <tr>
+                            <td colSpan="8" style={{ background:'var(--gray-50)', fontWeight:600, textTransform:'capitalize' }}>
+                              {fechaDiaLabel(fechaDia)}
+                            </td>
+                          </tr>
+                          {turnos.filter((turno) => turno.fechaVista === fechaDia).map(renderTurno)}
+                        </Fragment>
+                      ))
+                    : turnos.map(renderTurno)}
                 </tbody>
               </table>
             </div>
-            <Paginacion pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} />
           </>
         )}
       </div>

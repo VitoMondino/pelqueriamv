@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import Swal from 'sweetalert2'
 import axiosClient from '../api/axiosClient'
+import Paginacion from '../components/shared/Paginacion'
+import { usePagination } from '../hooks/usePagination'
 
 const mesActual  = () => new Date().getMonth() + 1
 const anioActual = () => new Date().getFullYear()
@@ -44,6 +46,8 @@ export default function AsistenciasPage() {
       `${cliente.apellido} ${cliente.nombre}`.toLowerCase().includes(query)
     )
   }, [clientes, buscarCliente])
+
+  const { itemsPagina, pagina, setPagina, totalPaginas } = usePagination(clientesFiltrados, 10)
 
   const asistenciasDeCliente = (idCliente) =>
     asistencias.filter((a) => a.id_cliente === idCliente).sort((a,b) => a.fecha.localeCompare(b.fecha))
@@ -129,7 +133,7 @@ export default function AsistenciasPage() {
               type="search"
               placeholder="Buscar por nombre o apellido..."
               value={buscarCliente}
-              onChange={(e) => setBuscarCliente(e.target.value)}
+              onChange={(e) => { setBuscarCliente(e.target.value); setPagina(1) }}
               aria-label="Buscar cliente por nombre o apellido"
             />
           </div>
@@ -144,7 +148,7 @@ export default function AsistenciasPage() {
                 </tr>
               </thead>
               <tbody>
-                {clientesFiltrados.map((c) => {
+                {itemsPagina.map((c) => {
                   const lista = asistenciasDeCliente(c.id)
                   const total = lista.length
                   const lleno = total >= 4
@@ -195,6 +199,7 @@ export default function AsistenciasPage() {
               </tbody>
             </table>
           </div>
+          <Paginacion pagina={pagina} totalPaginas={totalPaginas} onChange={setPagina} />
         </div>
       )}
     </div>
