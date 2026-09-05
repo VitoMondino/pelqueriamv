@@ -36,8 +36,8 @@ const SLOTS_HORA = (() => {
 })()
 
 const EMPTY_FORM = {
-  idCliente: '', idServicio: '', fecha: hoy(), hora: '',
-  diaSemana: '', esFijo: false, notas: '',
+  tipoCliente: 'registrado', idCliente: '', clienteNombre: '', clienteApellido: '', clienteTelefono: '',
+  idServicio: '', fecha: hoy(), hora: '', diaSemana: '', esFijo: false, notas: '',
 }
 
 const Toast = Swal.mixin({
@@ -107,7 +107,11 @@ export default function TurnosPage() {
 
   const openEdit = (t) => {
     setForm({
-      idCliente:  t.id_cliente,
+      tipoCliente: t.id_cliente ? 'registrado' : 'ocasional',
+      idCliente:  t.id_cliente || '',
+      clienteNombre: t.id_cliente ? '' : t.nombre || '',
+      clienteApellido: t.id_cliente ? '' : t.apellido || '',
+      clienteTelefono: t.id_cliente ? '' : t.telefono || '',
       idServicio: t.id_servicio,
       fecha:      t.fecha?.split('T')[0] || t.fecha,
       hora:       t.hora?.slice(0, 5),
@@ -115,7 +119,7 @@ export default function TurnosPage() {
       esFijo:     t.es_fijo,
       notas:      t.notas || '',
     })
-    setBuscarCliente(`${t.apellido}, ${t.nombre}`)
+    setBuscarCliente(t.id_cliente ? `${t.apellido}, ${t.nombre}` : '')
     setEditId(t.id); setModal(true); setError('')
   }
 
@@ -131,18 +135,30 @@ export default function TurnosPage() {
   }
 
   const seleccionarCliente = (c) => {
-    setForm((f) => ({ ...f, idCliente: c.id }))
+    setForm((f) => ({ ...f, tipoCliente: 'registrado', idCliente: c.id, clienteNombre: '', clienteApellido: '', clienteTelefono: '' }))
     setBuscarCliente(`${c.apellido}, ${c.nombre}`)
     setDropdownOpen(false)
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.idCliente) { setError('Seleccioná un cliente'); return }
+    if (form.tipoCliente === 'registrado' && !form.idCliente) { setError('Seleccioná un cliente registrado'); return }
+    if (form.tipoCliente === 'ocasional' && (!form.clienteNombre.trim() || !form.clienteApellido.trim())) {
+      setError('Ingresá nombre y apellido del cliente ocasional')
+      return
+    }
     if (!form.hora)      { setError('Seleccioná una hora');   return }
     setSaving(true); setError('')
     try {
-      const payload = { ...form, idCliente: Number(form.idCliente), idServicio: Number(form.idServicio) }
+      const payload = {
+        ...form,
+        idCliente: form.tipoCliente === 'registrado' ? Number(form.idCliente) : null,
+        clienteNombre: form.tipoCliente === 'ocasional' ? form.clienteNombre.trim() : null,
+        clienteApellido: form.tipoCliente === 'ocasional' ? form.clienteApellido.trim() : null,
+        clienteTelefono: form.tipoCliente === 'ocasional' ? form.clienteTelefono.trim() || null : null,
+        idServicio: Number(form.idServicio),
+      }
+      delete payload.tipoCliente
       if (editId) { await axiosClient.put(`/turnos/${editId}`, payload) }
       else        { await axiosClient.post('/turnos', payload) }
       await fetchTurnos()
@@ -231,7 +247,7 @@ export default function TurnosPage() {
         <td style={{ textTransform:'capitalize', whiteSpace:'nowrap' }}>{fechaDiaLabel(t.fechaVista)}</td>
       )}
       <td><strong>{t.hora?.slice(0,5)}</strong></td>
-      <td>{t.apellido}, {t.nombre}</td>
+      <td>{t.apellido}, {t.nombre} {!t.id_cliente && <span className="badge badge-gray" style={{ marginLeft:6 }}>Ocasional</span>}</td>
       <td>{t.nombre_servicio}</td>
       <td>${parseFloat(t.precio).toLocaleString('es-AR')}</td>
       <td><span className={`badge ${ESTADO_BADGE[t.estado]}`}>{t.estado}</span></td>
@@ -342,33 +358,44 @@ export default function TurnosPage() {
           {error && <div className="alert alert-error">{error}</div>}
           <form onSubmit={handleSubmit}>
             <div className="form-group" style={{ position:'relative' }}>
-              <label className="form-label">Cliente *</label>
-              <input
-                className="form-input"
-                placeholder="Escribí nombre o apellido..."
-                value={buscarCliente}
-                onChange={(e) => { setBuscarCliente(e.target.value); setForm((f) => ({ ...f, idCliente:'' })); setDropdownOpen(true) }}
-                onFocus={() => setDropdownOpen(true)}
-                autoComplete="off"
-              />
-              {dropdownOpen && buscarCliente.length > 0 && !form.idCliente && clientesFiltrados.length > 0 && (
-                <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'var(--white)', border:'1px solid var(--gray-200)', borderRadius:'var(--radius)', boxShadow:'var(--shadow-md)', zIndex:100, maxHeight:200, overflowY:'auto' }}>
-                  {clientesFiltrados.slice(0,10).map((c) => (
-                    <div key={c.id} onClick={() => seleccionarCliente(c)}
-                      style={{ padding:'9px 14px', cursor:'pointer', fontSize:14, borderBottom:'1px solid var(--gray-100)' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background='var(--gray-50)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background='transparent'}
-                    >
-                      <strong>{c.apellido}</strong>, {c.nombre}
-                      {c.telefono && <span style={{ color:'var(--gray-400)', marginLeft:8, fontSize:12 }}>{c.telefono}</span>}
+              <label className="form-label">Tipo de cliente *</label>
+              <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+                <button type="button" className={`btn btn-sm ${form.tipoCliente === 'registrado' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setForm((f) => ({ ...f, tipoCliente:'registrado', clienteNombre:'', clienteApellido:'', clienteTelefono:'' }))}>Registrado</button>
+                <button type="button" className={`btn btn-sm ${form.tipoCliente === 'ocasional' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => { setForm((f) => ({ ...f, tipoCliente:'ocasional', idCliente:'' })); setBuscarCliente('') }}>Ocasional</button>
+              </div>
+              {form.tipoCliente === 'registrado' ? (
+                <>
+                  <label className="form-label">Cliente registrado *</label>
+                  <input
+                    className="form-input"
+                    placeholder="Escribí nombre o apellido..."
+                    value={buscarCliente}
+                    onChange={(e) => { setBuscarCliente(e.target.value); setForm((f) => ({ ...f, idCliente:'' })); setDropdownOpen(true) }}
+                    onFocus={() => setDropdownOpen(true)}
+                    autoComplete="off"
+                  />
+                  {dropdownOpen && buscarCliente.length > 0 && !form.idCliente && clientesFiltrados.length > 0 && (
+                    <div style={{ position:'absolute', top:'100%', left:0, right:0, background:'var(--white)', border:'1px solid var(--gray-200)', borderRadius:'var(--radius)', boxShadow:'var(--shadow-md)', zIndex:100, maxHeight:200, overflowY:'auto' }}>
+                      {clientesFiltrados.slice(0,10).map((c) => (
+                        <div key={c.id} onClick={() => seleccionarCliente(c)}
+                          style={{ padding:'9px 14px', cursor:'pointer', fontSize:14, borderBottom:'1px solid var(--gray-100)' }}
+                          onMouseEnter={(e) => e.currentTarget.style.background='var(--gray-50)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background='transparent'}
+                        >
+                          <strong>{c.apellido}</strong>, {c.nombre}
+                          {c.telefono && <span style={{ color:'var(--gray-400)', marginLeft:8, fontSize:12 }}>{c.telefono}</span>}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  {clienteSeleccionado && <span style={{ fontSize:12, color:'var(--success)', marginTop:3 }}>✓ {clienteSeleccionado.apellido}, {clienteSeleccionado.nombre}</span>}
+                </>
+              ) : (
+                <div className="form-row">
+                  <div className="form-group"><label className="form-label">Nombre *</label><input className="form-input" name="clienteNombre" value={form.clienteNombre} onChange={handleChange} required /></div>
+                  <div className="form-group"><label className="form-label">Apellido *</label><input className="form-input" name="clienteApellido" value={form.clienteApellido} onChange={handleChange} required /></div>
+                  <div className="form-group"><label className="form-label">Teléfono</label><input className="form-input" name="clienteTelefono" value={form.clienteTelefono} onChange={handleChange} /></div>
                 </div>
-              )}
-              {clienteSeleccionado && (
-                <span style={{ fontSize:12, color:'var(--success)', marginTop:3 }}>
-                  ✓ {clienteSeleccionado.apellido}, {clienteSeleccionado.nombre}
-                </span>
               )}
             </div>
 
@@ -404,7 +431,7 @@ export default function TurnosPage() {
               <div className="form-group" style={{ justifyContent:'center' }}>
                 <label className="form-label">Turno fijo</label>
                 <label style={{ display:'flex', alignItems:'center', gap:8, paddingTop:8 }}>
-                  <input type="checkbox" name="esFijo" checked={form.esFijo} onChange={handleChange} className="asistencia-check" />
+                  <input type="checkbox" name="esFijo" checked={form.esFijo} onChange={handleChange} className="asistencia-check" disabled={form.tipoCliente === 'ocasional'} />
                   <span style={{ fontSize:14 }}>Es recurrente</span>
                 </label>
               </div>

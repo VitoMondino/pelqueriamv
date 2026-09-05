@@ -9,9 +9,13 @@ const validarHorario = (hora) => {
 
 const getAll = async () => {
   const { rows } = await db.query(
-    `SELECT t.*, c.nombre, c.apellido, c.telefono, s.nombre_servicio, s.precio
-     FROM turnos t
-     JOIN clientes  c ON c.id = t.id_cliente
+        `SELECT t.*,
+          COALESCE(c.nombre, t.cliente_nombre) AS nombre,
+          COALESCE(c.apellido, t.cliente_apellido) AS apellido,
+          COALESCE(c.telefono, t.cliente_telefono) AS telefono,
+          s.nombre_servicio, s.precio
+    FROM turnos t
+    LEFT JOIN clientes c ON c.id = t.id_cliente
      JOIN servicios s ON s.id = t.id_servicio
      ORDER BY t.fecha DESC, t.hora`
   );
@@ -29,9 +33,12 @@ const getByFecha = async (fecha) => {
          WHEN t.es_fijo = TRUE AND t.fecha::date != $1::date THEN 'pendiente' 
          ELSE t.estado 
        END AS estado,
-       c.nombre, c.apellido, c.telefono, s.nombre_servicio, s.precio
+       COALESCE(c.nombre, t.cliente_nombre) AS nombre,
+       COALESCE(c.apellido, t.cliente_apellido) AS apellido,
+       COALESCE(c.telefono, t.cliente_telefono) AS telefono,
+       s.nombre_servicio, s.precio
      FROM turnos t
-     JOIN clientes  c ON c.id = t.id_cliente
+     LEFT JOIN clientes c ON c.id = t.id_cliente
      JOIN servicios s ON s.id = t.id_servicio
      WHERE
        -- Turnos directos para esta fecha (fijos o no)
@@ -61,9 +68,13 @@ const getByFecha = async (fecha) => {
 
 const getById = async (id) => {
   const { rows } = await db.query(
-    `SELECT t.*, c.nombre, c.apellido, c.telefono, s.nombre_servicio, s.precio
+        `SELECT t.*,
+          COALESCE(c.nombre, t.cliente_nombre) AS nombre,
+          COALESCE(c.apellido, t.cliente_apellido) AS apellido,
+          COALESCE(c.telefono, t.cliente_telefono) AS telefono,
+          s.nombre_servicio, s.precio
      FROM turnos t
-     JOIN clientes  c ON c.id = t.id_cliente
+    LEFT JOIN clientes c ON c.id = t.id_cliente
      JOIN servicios s ON s.id = t.id_servicio
      WHERE t.id = $1`,
     [id]
@@ -73,8 +84,12 @@ const getById = async (id) => {
 
 const getByCliente = async (idCliente) => {
   const { rows } = await db.query(
-    `SELECT t.*, s.nombre_servicio, s.precio
+      `SELECT t.*, s.nombre_servicio, s.precio,
+           COALESCE(c.nombre, t.cliente_nombre) AS nombre,
+           COALESCE(c.apellido, t.cliente_apellido) AS apellido,
+           COALESCE(c.telefono, t.cliente_telefono) AS telefono
      FROM turnos t
+         LEFT JOIN clientes c ON c.id = t.id_cliente
      JOIN servicios s ON s.id = t.id_servicio
      WHERE t.id_cliente = $1
      ORDER BY t.fecha DESC, t.hora`,
@@ -87,7 +102,7 @@ const getFijos = async () => {
   const { rows } = await db.query(
     `SELECT t.*, c.nombre, c.apellido, c.telefono, s.nombre_servicio
      FROM turnos t
-     JOIN clientes  c ON c.id = t.id_cliente
+    LEFT JOIN clientes c ON c.id = t.id_cliente
      JOIN servicios s ON s.id = t.id_servicio
      WHERE t.es_fijo = TRUE
      ORDER BY t.dia_semana, t.hora`
@@ -137,32 +152,39 @@ const validarDisponibilidad = async (fecha, hora, excludeId = null) => {
   return { disponible: true };
 };
 
-const create = async ({ idCliente, idServicio, fecha, hora, diaSemana, esFijo, notas }) => {
+const create = async ({ idCliente, clienteNombre, clienteApellido, clienteTelefono, idServicio, fecha, hora, diaSemana, esFijo, notas }) => {
   const check = await validarDisponibilidad(fecha, hora);
   if (!check.disponible) {
     throw Object.assign(new Error(check.mensaje), { status: 422 });
   }
   const { rows } = await db.query(
-    `INSERT INTO turnos (id_cliente, id_servicio, fecha, hora, dia_semana, es_fijo, notas)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO turnos
+       (id_cliente, cliente_nombre, cliente_apellido, cliente_telefono,
+        id_servicio, fecha, hora, dia_semana, es_fijo, notas)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
-    [idCliente, idServicio, fecha, hora, diaSemana || null, esFijo || false, notas || null]
+    [idCliente || null, clienteNombre?.trim() || null, clienteApellido?.trim() || null,
+      clienteTelefono?.trim() || null, idServicio, fecha, hora, diaSemana || null,
+      esFijo || false, notas || null]
   );
   return rows[0];
 };
 
-const update = async (id, { idCliente, idServicio, fecha, hora, diaSemana, esFijo, notas }) => {
+const update = async (id, { idCliente, clienteNombre, clienteApellido, clienteTelefono, idServicio, fecha, hora, diaSemana, esFijo, notas }) => {
   const check = await validarDisponibilidad(fecha, hora, id);
   if (!check.disponible) {
     throw Object.assign(new Error(check.mensaje), { status: 422 });
   }
   const { rows } = await db.query(
     `UPDATE turnos
-     SET id_cliente = $2, id_servicio = $3, fecha = $4, hora = $5,
-         dia_semana = $6, es_fijo = $7, notas = $8
+     SET id_cliente = $2, cliente_nombre = $3, cliente_apellido = $4,
+       cliente_telefono = $5, id_servicio = $6, fecha = $7, hora = $8,
+       dia_semana = $9, es_fijo = $10, notas = $11
      WHERE id = $1
      RETURNING *`,
-    [id, idCliente, idServicio, fecha, hora, diaSemana || null, esFijo || false, notas || null]
+    [id, idCliente || null, clienteNombre?.trim() || null, clienteApellido?.trim() || null,
+      clienteTelefono?.trim() || null, idServicio, fecha, hora, diaSemana || null,
+      esFijo || false, notas || null]
   );
   return rows[0] || null;
 };
