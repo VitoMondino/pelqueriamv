@@ -124,14 +124,14 @@ const validarDisponibilidad = async (fecha, hora, excludeId = null) => {
   if (excludeId) {
     const res = await db.query(
       `SELECT id, hora FROM turnos
-       WHERE fecha = $1 AND estado != 'cancelado' AND id != $2`,
+        WHERE fecha::date = $1::date AND estado != 'cancelado' AND id != $2`,
       [fecha, excludeId]
     );
     rows = res.rows;
   } else {
     const res = await db.query(
       `SELECT id, hora FROM turnos
-       WHERE fecha = $1 AND estado != 'cancelado'`,
+        WHERE fecha::date = $1::date AND estado != 'cancelado'`,
       [fecha]
     );
     rows = res.rows;
@@ -166,7 +166,15 @@ const create = async ({ idCliente, clienteNombre, clienteApellido, clienteTelefo
     [idCliente || null, clienteNombre?.trim() || null, clienteApellido?.trim() || null,
       clienteTelefono?.trim() || null, idServicio, fecha, hora, diaSemana || null,
       esFijo || false, notas || null]
-  );
+  ).catch((err) => {
+    if (['23505', '23P01', 'P0001'].includes(err.code)) {
+      throw Object.assign(
+        new Error(`Ya existe un turno para el ${fecha} a las ${hora.slice(0, 5)}.`),
+        { status: 409 }
+      )
+    }
+    throw err
+  });
   return rows[0];
 };
 

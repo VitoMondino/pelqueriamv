@@ -83,4 +83,21 @@ describe('turnoService.create', () => {
       [null, 'Ana', 'Gomez', '3511234567', 2, '2026-09-04', '11:00', null, false, null]
     )
   })
+
+  test('convierte un conflicto de base de datos en un mensaje claro', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(Object.assign(new Error('exclusion conflict'), { code: '23P01' }))
+
+    await expect(turnoService.create({
+      clienteNombre: 'Ana',
+      clienteApellido: 'Gomez',
+      idServicio: 2,
+      fecha: '2026-09-04',
+      hora: '11:00',
+    })).rejects.toMatchObject({
+      status: 409,
+      message: 'Ya existe un turno para el 2026-09-04 a las 11:00.',
+    })
+  })
 })
