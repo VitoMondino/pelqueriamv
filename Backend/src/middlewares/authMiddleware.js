@@ -10,7 +10,10 @@ const authMiddleware = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: 'Configuración de autenticación incompleta' });
+    }
+    const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     req.user = payload; // { id, email, rol }
     next();
   } catch (err) {

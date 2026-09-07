@@ -3,6 +3,14 @@ const jwt    = require('jsonwebtoken');
 const db     = require('../config/db');
 
 const SALT_ROUNDS = 12;
+const JWT_ALGORITHM = 'HS256';
+
+const obtenerJwtSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    throw Object.assign(new Error('JWT_SECRET no configurado'), { status: 500 });
+  }
+  return process.env.JWT_SECRET;
+};
 
 const login = async (email, password) => {
   const { rows } = await db.query(
@@ -21,8 +29,9 @@ const login = async (email, password) => {
   }
 
   const payload = { id: usuario.id, email: usuario.email, rol: usuario.rol };
-  const token   = jwt.sign(payload, process.env.JWT_SECRET, {
+  const token   = jwt.sign(payload, obtenerJwtSecret(), {
     expiresIn: process.env.JWT_EXPIRES_IN || '8h',
+    algorithm: JWT_ALGORITHM,
   });
 
   return {
